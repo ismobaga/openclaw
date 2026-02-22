@@ -1568,7 +1568,7 @@ async function dispatchDiscordCommandInteraction(params: {
     OriginatingTo: isDirectMessage ? `user:${user.id}` : `channel:${channelId}`,
   });
 
-  const { onModelSelected, ...prefixOptions } = createReplyPrefixOptions({
+  const prefixOptions = createReplyPrefixOptions({
     cfg,
     agentId: effectiveRoute.agentId,
     channel: "discord",
@@ -1612,14 +1612,6 @@ async function dispatchDiscordCommandInteraction(params: {
         const message = err instanceof Error ? (err.stack ?? err.message) : String(err);
         log.error(`discord slash ${info.kind} reply failed: ${message}`);
       },
-    },
-    replyOptions: {
-      skillFilter: channelConfig?.skills,
-      disableBlockStreaming:
-        typeof discordConfig?.blockStreaming === "boolean"
-          ? !discordConfig.blockStreaming
-          : undefined,
-      onModelSelected,
     },
   });
 }

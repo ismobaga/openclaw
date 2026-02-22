@@ -23,9 +23,8 @@ import {
   isChatStopCommandText,
   resolveChatRunExpiresAtMs,
 } from "../chat-abort.js";
-import { type ChatImageContent, parseMessageWithAttachments } from "../chat-attachments.js";
+import { parseMessageWithAttachments } from "../chat-attachments.js";
 import { stripEnvelopeFromMessages } from "../chat-sanitize.js";
-import { GATEWAY_CLIENT_CAPS, hasGatewayClientCap } from "../protocol/client-info.js";
 import {
   ErrorCodes,
   errorShape,
@@ -714,7 +713,6 @@ export const chatHandlers: GatewayRequestHandlers = {
       return;
     }
     let parsedMessage = inboundMessage;
-    let parsedImages: ChatImageContent[] = [];
     if (normalizedAttachments.length > 0) {
       try {
         const parsed = await parseMessageWithAttachments(inboundMessage, normalizedAttachments, {
@@ -722,7 +720,6 @@ export const chatHandlers: GatewayRequestHandlers = {
           log: context.logGateway,
         });
         parsedMessage = parsed.message;
-        parsedImages = parsed.images;
       } catch (err) {
         respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, String(err)));
         return;
@@ -831,7 +828,7 @@ export const chatHandlers: GatewayRequestHandlers = {
         sessionKey,
         config: cfg,
       });
-      const { onModelSelected, ...prefixOptions } = createReplyPrefixOptions({
+      const prefixOptions = createReplyPrefixOptions({
         cfg,
         agentId,
         channel: INTERNAL_MESSAGE_CHANNEL,
@@ -859,31 +856,6 @@ export const chatHandlers: GatewayRequestHandlers = {
         ctx,
         cfg,
         dispatcher,
-        replyOptions: {
-          runId: clientRunId,
-          abortSignal: abortController.signal,
-          images: parsedImages.length > 0 ? parsedImages : undefined,
-          onAgentRunStart: (runId) => {
-            agentRunStarted = true;
-            const connId = typeof client?.connId === "string" ? client.connId : undefined;
-            const wantsToolEvents = hasGatewayClientCap(
-              client?.connect?.caps,
-              GATEWAY_CLIENT_CAPS.TOOL_EVENTS,
-            );
-            if (connId && wantsToolEvents) {
-              context.registerToolEventRecipient(runId, connId);
-              // Register for any other active runs *in the same session* so
-              // late-joining clients (e.g. page refresh mid-response) receive
-              // in-progress tool events without leaking cross-session data.
-              for (const [activeRunId, active] of context.chatAbortControllers) {
-                if (activeRunId !== runId && active.sessionKey === p.sessionKey) {
-                  context.registerToolEventRecipient(activeRunId, connId);
-                }
-              }
-            }
-          },
-          onModelSelected,
-        },
       })
         .then(() => {
           if (!agentRunStarted) {

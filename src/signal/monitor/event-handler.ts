@@ -191,7 +191,7 @@ export function createSignalEventHandler(deps: SignalEventHandlerDeps) {
       logVerbose(`signal inbound: from=${ctxPayload.From} len=${body.length} preview="${preview}"`);
     }
 
-    const { onModelSelected, ...prefixOptions } = createReplyPrefixOptions({
+    const prefixOptions = createReplyPrefixOptions({
       cfg: deps.cfg,
       agentId: route.agentId,
       channel: "signal",
@@ -219,7 +219,7 @@ export function createSignalEventHandler(deps: SignalEventHandlerDeps) {
       },
     });
 
-    const { dispatcher, replyOptions, markDispatchIdle } = createReplyDispatcherWithTyping({
+    const { dispatcher, markDispatchIdle } = createReplyDispatcherWithTyping({
       ...prefixOptions,
       humanDelay: resolveHumanDelayConfig(deps.cfg, route.agentId),
       deliver: async (payload) => {
@@ -244,12 +244,6 @@ export function createSignalEventHandler(deps: SignalEventHandlerDeps) {
       ctx: ctxPayload,
       cfg: deps.cfg,
       dispatcher,
-      replyOptions: {
-        ...replyOptions,
-        disableBlockStreaming:
-          typeof deps.blockStreaming === "boolean" ? !deps.blockStreaming : undefined,
-        onModelSelected,
-      },
     });
     markDispatchIdle();
     if (!queuedFinal) {

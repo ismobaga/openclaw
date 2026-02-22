@@ -394,7 +394,7 @@ export async function monitorTlonProvider(opts: MonitorTlonOpts = {}): Promise<v
 
     const dispatchStartTime = Date.now();
 
-    const { onModelSelected, ...prefixOptions } = createReplyPrefixOptions({
+    const prefixOptions = createReplyPrefixOptions({
       cfg,
       agentId: route.agentId,
       channel: "tlon",
@@ -453,9 +453,6 @@ export async function monitorTlonProvider(opts: MonitorTlonOpts = {}): Promise<v
             `[tlon] ${info.kind} reply failed after ${dispatchDuration}ms: ${String(err)}`,
           );
         },
-      },
-      replyOptions: {
-        onModelSelected,
       },
     });
   };

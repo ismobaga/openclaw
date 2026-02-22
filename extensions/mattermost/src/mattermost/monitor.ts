@@ -736,7 +736,7 @@ export async function monitorMattermostProvider(opts: MonitorMattermostOpts = {}
       accountId: account.accountId,
     });
 
-    const { onModelSelected, ...prefixOptions } = createReplyPrefixOptions({
+    const prefixOptions = createReplyPrefixOptions({
       cfg,
       agentId: route.agentId,
       channel: "mattermost",
@@ -754,59 +754,52 @@ export async function monitorMattermostProvider(opts: MonitorMattermostOpts = {}
         });
       },
     });
-    const { dispatcher, replyOptions, markDispatchIdle } =
-      core.channel.reply.createReplyDispatcherWithTyping({
-        ...prefixOptions,
-        humanDelay: core.channel.reply.resolveHumanDelayConfig(cfg, route.agentId),
-        deliver: async (payload: ReplyPayload) => {
-          const mediaUrls = payload.mediaUrls ?? (payload.mediaUrl ? [payload.mediaUrl] : []);
-          const text = core.channel.text.convertMarkdownTables(payload.text ?? "", tableMode);
-          if (mediaUrls.length === 0) {
-            const chunkMode = core.channel.text.resolveChunkMode(
-              cfg,
-              "mattermost",
-              account.accountId,
-            );
-            const chunks = core.channel.text.chunkMarkdownTextWithMode(text, textLimit, chunkMode);
-            for (const chunk of chunks.length > 0 ? chunks : [text]) {
-              if (!chunk) {
-                continue;
-              }
-              await sendMessageMattermost(to, chunk, {
-                accountId: account.accountId,
-                replyToId: threadRootId,
-              });
+    const { dispatcher, markDispatchIdle } = core.channel.reply.createReplyDispatcherWithTyping({
+      ...prefixOptions,
+      humanDelay: core.channel.reply.resolveHumanDelayConfig(cfg, route.agentId),
+      deliver: async (payload: ReplyPayload) => {
+        const mediaUrls = payload.mediaUrls ?? (payload.mediaUrl ? [payload.mediaUrl] : []);
+        const text = core.channel.text.convertMarkdownTables(payload.text ?? "", tableMode);
+        if (mediaUrls.length === 0) {
+          const chunkMode = core.channel.text.resolveChunkMode(
+            cfg,
+            "mattermost",
+            account.accountId,
+          );
+          const chunks = core.channel.text.chunkMarkdownTextWithMode(text, textLimit, chunkMode);
+          for (const chunk of chunks.length > 0 ? chunks : [text]) {
+            if (!chunk) {
+              continue;
             }
-          } else {
-            let first = true;
-            for (const mediaUrl of mediaUrls) {
-              const caption = first ? text : "";
-              first = false;
-              await sendMessageMattermost(to, caption, {
-                accountId: account.accountId,
-                mediaUrl,
-                replyToId: threadRootId,
-              });
-            }
+            await sendMessageMattermost(to, chunk, {
+              accountId: account.accountId,
+              replyToId: threadRootId,
+            });
           }
-          runtime.log?.(`delivered reply to ${to}`);
-        },
-        onError: (err, info) => {
-          runtime.error?.(`mattermost ${info.kind} reply failed: ${String(err)}`);
-        },
-        onReplyStart: typingCallbacks.onReplyStart,
-      });
+        } else {
+          let first = true;
+          for (const mediaUrl of mediaUrls) {
+            const caption = first ? text : "";
+            first = false;
+            await sendMessageMattermost(to, caption, {
+              accountId: account.accountId,
+              mediaUrl,
+              replyToId: threadRootId,
+            });
+          }
+        }
+        runtime.log?.(`delivered reply to ${to}`);
+      },
+      onError: (err, info) => {
+        runtime.error?.(`mattermost ${info.kind} reply failed: ${String(err)}`);
+      },
+      onReplyStart: typingCallbacks.onReplyStart,
+    });
 
     await core.channel.reply.dispatchReplyFromConfig({
       ctx: ctxPayload,
       cfg,
       dispatcher,
-      replyOptions: {
-        ...replyOptions,
-        disableBlockStreaming:
-          typeof account.blockStreaming === "boolean" ? !account.blockStreaming : undefined,
-        onModelSelected,
-      },
     });
     markDispatchIdle();
     if (historyKey) {

@@ -125,115 +125,89 @@ export function createFeishuReplyDispatcher(params: CreateFeishuReplyDispatcherP
     lastPartial = "";
   };
 
-  const { dispatcher, replyOptions, markDispatchIdle } =
-    core.channel.reply.createReplyDispatcherWithTyping({
-      responsePrefix: prefixContext.responsePrefix,
-      responsePrefixContextProvider: prefixContext.responsePrefixContextProvider,
-      humanDelay: core.channel.reply.resolveHumanDelayConfig(cfg, agentId),
-      onReplyStart: () => {
-        if (streamingEnabled && renderMode === "card") {
-          startStreaming();
-        }
-        void typingCallbacks.onReplyStart?.();
-      },
-      deliver: async (payload: ReplyPayload, info) => {
-        const text = payload.text ?? "";
-        if (!text.trim()) {
-          return;
-        }
+  const { dispatcher, markDispatchIdle } = core.channel.reply.createReplyDispatcherWithTyping({
+    responsePrefix: prefixContext.responsePrefix,
+    responsePrefixContextProvider: prefixContext.responsePrefixContextProvider,
+    humanDelay: core.channel.reply.resolveHumanDelayConfig(cfg, agentId),
+    onReplyStart: () => {
+      if (streamingEnabled && renderMode === "card") {
+        startStreaming();
+      }
+      void typingCallbacks.onReplyStart?.();
+    },
+    deliver: async (payload: ReplyPayload, info) => {
+      const text = payload.text ?? "";
+      if (!text.trim()) {
+        return;
+      }
 
-        const useCard = renderMode === "card" || (renderMode === "auto" && shouldUseCard(text));
+      const useCard = renderMode === "card" || (renderMode === "auto" && shouldUseCard(text));
 
-        if ((info?.kind === "block" || info?.kind === "final") && streamingEnabled && useCard) {
-          startStreaming();
-          if (streamingStartPromise) {
-            await streamingStartPromise;
-          }
+      if ((info?.kind === "block" || info?.kind === "final") && streamingEnabled && useCard) {
+        startStreaming();
+        if (streamingStartPromise) {
+          await streamingStartPromise;
         }
+      }
 
-        if (streaming?.isActive()) {
-          if (info?.kind === "final") {
-            streamText = text;
-            await closeStreaming();
-          }
-          return;
+      if (streaming?.isActive()) {
+        if (info?.kind === "final") {
+          streamText = text;
+          await closeStreaming();
         }
+        return;
+      }
 
-        let first = true;
-        if (useCard) {
-          for (const chunk of core.channel.text.chunkTextWithMode(
-            text,
-            textChunkLimit,
-            chunkMode,
-          )) {
-            await sendMarkdownCardFeishu({
-              cfg,
-              to: chatId,
-              text: chunk,
-              replyToMessageId,
-              mentions: first ? mentionTargets : undefined,
-              accountId,
-            });
-            first = false;
-          }
-        } else {
-          const converted = core.channel.text.convertMarkdownTables(text, tableMode);
-          for (const chunk of core.channel.text.chunkTextWithMode(
-            converted,
-            textChunkLimit,
-            chunkMode,
-          )) {
-            await sendMessageFeishu({
-              cfg,
-              to: chatId,
-              text: chunk,
-              replyToMessageId,
-              mentions: first ? mentionTargets : undefined,
-              accountId,
-            });
-            first = false;
-          }
+      let first = true;
+      if (useCard) {
+        for (const chunk of core.channel.text.chunkTextWithMode(text, textChunkLimit, chunkMode)) {
+          await sendMarkdownCardFeishu({
+            cfg,
+            to: chatId,
+            text: chunk,
+            replyToMessageId,
+            mentions: first ? mentionTargets : undefined,
+            accountId,
+          });
+          first = false;
         }
-      },
-      onError: async (error, info) => {
-        params.runtime.error?.(
-          `feishu[${account.accountId}] ${info.kind} reply failed: ${String(error)}`,
-        );
-        await closeStreaming();
-        typingCallbacks.onIdle?.();
-      },
-      onIdle: async () => {
-        await closeStreaming();
-        typingCallbacks.onIdle?.();
-      },
-      onCleanup: () => {
-        typingCallbacks.onCleanup?.();
-      },
-    });
+      } else {
+        const converted = core.channel.text.convertMarkdownTables(text, tableMode);
+        for (const chunk of core.channel.text.chunkTextWithMode(
+          converted,
+          textChunkLimit,
+          chunkMode,
+        )) {
+          await sendMessageFeishu({
+            cfg,
+            to: chatId,
+            text: chunk,
+            replyToMessageId,
+            mentions: first ? mentionTargets : undefined,
+            accountId,
+          });
+          first = false;
+        }
+      }
+    },
+    onError: async (error, info) => {
+      params.runtime.error?.(
+        `feishu[${account.accountId}] ${info.kind} reply failed: ${String(error)}`,
+      );
+      await closeStreaming();
+      typingCallbacks.onIdle?.();
+    },
+    onIdle: async () => {
+      await closeStreaming();
+      typingCallbacks.onIdle?.();
+    },
+    onCleanup: () => {
+      typingCallbacks.onCleanup?.();
+    },
+  });
 
   return {
     dispatcher,
-    replyOptions: {
-      ...replyOptions,
-      onModelSelected: prefixContext.onModelSelected,
-      onPartialReply: streamingEnabled
-        ? (payload: ReplyPayload) => {
-            if (!payload.text || payload.text === lastPartial) {
-              return;
-            }
-            lastPartial = payload.text;
-            streamText = payload.text;
-            partialUpdateQueue = partialUpdateQueue.then(async () => {
-              if (streamingStartPromise) {
-                await streamingStartPromise;
-              }
-              if (streaming?.isActive()) {
-                await streaming.update(streamText);
-              }
-            });
-          }
-        : undefined,
-    },
     markDispatchIdle,
   };
 }

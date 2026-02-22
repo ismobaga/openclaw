@@ -644,7 +644,7 @@ async function processMessageWithPipeline(params: {
     channel: "zalo",
     accountId: account.accountId,
   });
-  const { onModelSelected, ...prefixOptions } = createReplyPrefixOptions({
+  const prefixOptions = createReplyPrefixOptions({
     cfg: config,
     agentId: route.agentId,
     channel: "zalo",
@@ -673,9 +673,6 @@ async function processMessageWithPipeline(params: {
       onError: (err, info) => {
         runtime.error?.(`[${account.accountId}] Zalo ${info.kind} reply failed: ${String(err)}`);
       },
-    },
-    replyOptions: {
-      onModelSelected,
     },
   });
 }

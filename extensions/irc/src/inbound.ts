@@ -311,7 +311,7 @@ export async function handleIrcInbound(params: {
     },
   });
 
-  const { onModelSelected, ...prefixOptions } = createReplyPrefixOptions({
+  const prefixOptions = createReplyPrefixOptions({
     cfg: config as OpenClawConfig,
     agentId: route.agentId,
     channel: CHANNEL_ID,
@@ -340,14 +340,6 @@ export async function handleIrcInbound(params: {
       onError: (err, info) => {
         runtime.error?.(`irc ${info.kind} reply failed: ${String(err)}`);
       },
-    },
-    replyOptions: {
-      skillFilter: groupMatch.groupConfig?.skills,
-      onModelSelected,
-      disableBlockStreaming:
-        typeof account.config.blockStreaming === "boolean"
-          ? !account.config.blockStreaming
-          : undefined,
     },
   });
 }

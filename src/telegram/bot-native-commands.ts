@@ -553,7 +553,7 @@ export const registerTelegramNativeCommands = ({
                 })
               : null;
           const sessionKey = threadKeys?.sessionKey ?? baseSessionKey;
-          const { skillFilter, groupSystemPrompt } = resolveTelegramGroupPromptSettings({
+          const { groupSystemPrompt } = resolveTelegramGroupPromptSettings({
             groupConfig,
             topicConfig,
           });
@@ -606,17 +606,12 @@ export const registerTelegramNativeCommands = ({
             runtime.error?.(danger(`telegram slash: failed updating session meta: ${String(err)}`));
           }
 
-          const disableBlockStreaming =
-            typeof telegramCfg.blockStreaming === "boolean"
-              ? !telegramCfg.blockStreaming
-              : undefined;
-
           const deliveryState = {
             delivered: false,
             skippedNonSilent: 0,
           };
 
-          const { onModelSelected, ...prefixOptions } = createReplyPrefixOptions({
+          const prefixOptions = createReplyPrefixOptions({
             cfg,
             agentId: route.agentId,
             channel: "telegram",
@@ -645,11 +640,6 @@ export const registerTelegramNativeCommands = ({
               onError: (err, info) => {
                 runtime.error?.(danger(`telegram slash ${info.kind} reply failed: ${String(err)}`));
               },
-            },
-            replyOptions: {
-              skillFilter,
-              disableBlockStreaming,
-              onModelSelected,
             },
           });
           if (!deliveryState.delivered && deliveryState.skippedNonSilent > 0) {

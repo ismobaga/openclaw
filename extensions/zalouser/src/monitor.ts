@@ -351,7 +351,7 @@ async function processMessage(
     },
   });
 
-  const { onModelSelected, ...prefixOptions } = createReplyPrefixOptions({
+  const prefixOptions = createReplyPrefixOptions({
     cfg: config,
     agentId: route.agentId,
     channel: "zalouser",
@@ -384,9 +384,6 @@ async function processMessage(
       onError: (err, info) => {
         runtime.error(`[${account.accountId}] Zalouser ${info.kind} reply failed: ${String(err)}`);
       },
-    },
-    replyOptions: {
-      onModelSelected,
     },
   });
 }

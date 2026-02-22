@@ -312,7 +312,7 @@ export async function handleNextcloudTalkInbound(params: {
     },
   });
 
-  const { onModelSelected, ...prefixOptions } = createReplyPrefixOptions({
+  const prefixOptions = createReplyPrefixOptions({
     cfg: config as OpenClawConfig,
     agentId: route.agentId,
     channel: CHANNEL_ID,
@@ -340,14 +340,6 @@ export async function handleNextcloudTalkInbound(params: {
       onError: (err, info) => {
         runtime.error?.(`nextcloud-talk ${info.kind} reply failed: ${String(err)}`);
       },
-    },
-    replyOptions: {
-      skillFilter: roomConfig?.skills,
-      onModelSelected,
-      disableBlockStreaming:
-        typeof account.config.blockStreaming === "boolean"
-          ? !account.config.blockStreaming
-          : undefined,
     },
   });
 }
