@@ -7,7 +7,6 @@ import {
   normalizeProviders,
   type ProviderConfig,
   resolveImplicitBedrockProvider,
-  resolveImplicitCopilotProvider,
   resolveImplicitProviders,
 } from "./models-config.providers.js";
 
@@ -98,11 +97,6 @@ export async function ensureOpenClawModelsJson(
       ? mergeProviderModels(implicitBedrock, existing)
       : implicitBedrock;
   }
-  const implicitCopilot = await resolveImplicitCopilotProvider({ agentDir });
-  if (implicitCopilot && !providers["github-copilot"]) {
-    providers["github-copilot"] = implicitCopilot;
-  }
-
   if (Object.keys(providers).length === 0) {
     return { agentDir, wrote: false };
   }
