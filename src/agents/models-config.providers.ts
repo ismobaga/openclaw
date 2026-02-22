@@ -1,10 +1,6 @@
 import type { OpenClawConfig } from "../config/config.js";
 import type { ModelDefinitionConfig } from "../config/types.models.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
-import {
-  DEFAULT_COPILOT_API_BASE_URL,
-  resolveCopilotApiToken,
-} from "../providers/github-copilot-token.js";
 import { ensureAuthProfileStore, listProfilesForProvider } from "./auth-profiles.js";
 import { discoverBedrockModels } from "./bedrock-discovery.js";
 import {
@@ -952,67 +948,6 @@ export async function resolveImplicitProviders(params: {
   }
 
   return providers;
-}
-
-export async function resolveImplicitCopilotProvider(params: {
-  agentDir: string;
-  env?: NodeJS.ProcessEnv;
-}): Promise<ProviderConfig | null> {
-  const env = params.env ?? process.env;
-  const authStore = ensureAuthProfileStore(params.agentDir, {
-    allowKeychainPrompt: false,
-  });
-  const hasProfile = listProfilesForProvider(authStore, "github-copilot").length > 0;
-  const envToken = env.COPILOT_GITHUB_TOKEN ?? env.GH_TOKEN ?? env.GITHUB_TOKEN;
-  const githubToken = (envToken ?? "").trim();
-
-  if (!hasProfile && !githubToken) {
-    return null;
-  }
-
-  let selectedGithubToken = githubToken;
-  if (!selectedGithubToken && hasProfile) {
-    // Use the first available profile as a default for discovery (it will be
-    // re-resolved per-run by the embedded runner).
-    const profileId = listProfilesForProvider(authStore, "github-copilot")[0];
-    const profile = profileId ? authStore.profiles[profileId] : undefined;
-    if (profile && profile.type === "token") {
-      selectedGithubToken = profile.token;
-    }
-  }
-
-  let baseUrl = DEFAULT_COPILOT_API_BASE_URL;
-  if (selectedGithubToken) {
-    try {
-      const token = await resolveCopilotApiToken({
-        githubToken: selectedGithubToken,
-        env,
-      });
-      baseUrl = token.baseUrl;
-    } catch {
-      baseUrl = DEFAULT_COPILOT_API_BASE_URL;
-    }
-  }
-
-  // pi-coding-agent's ModelRegistry marks a model "available" only if its
-  // `AuthStorage` has auth configured for that provider (via auth.json/env/etc).
-  // Our Copilot auth lives in OpenClaw's auth-profiles store instead, so we also
-  // write a runtime-only auth.json entry for pi-coding-agent to pick up.
-  //
-  // This is safe because it's (1) within OpenClaw's agent dir, (2) contains the
-  // GitHub token (not the exchanged Copilot token), and (3) matches existing
-  // patterns for OAuth-like providers in pi-coding-agent.
-  // Note: we deliberately do not write pi-coding-agent's `auth.json` here.
-  // OpenClaw uses its own auth store and exchanges tokens at runtime.
-  // `models list` uses OpenClaw's auth heuristics for availability.
-
-  // We intentionally do NOT define custom models for Copilot in models.json.
-  // pi-coding-agent treats providers with models as replacements requiring apiKey.
-  // We only override baseUrl; the model list comes from pi-ai built-ins.
-  return {
-    baseUrl,
-    models: [],
-  } satisfies ProviderConfig;
 }
 
 export async function resolveImplicitBedrockProvider(params: {

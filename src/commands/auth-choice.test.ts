@@ -22,10 +22,6 @@ import {
 
 type DetectZaiEndpoint = typeof import("./zai-endpoint-detect.js").detectZaiEndpoint;
 
-vi.mock("../providers/github-copilot-auth.js", () => ({
-  githubCopilotLoginCommand: vi.fn(async () => {}),
-}));
-
 const loginOpenAICodexOAuth = vi.hoisted(() =>
   vi.fn<() => Promise<OAuthCredentials | null>>(async () => null),
 );
@@ -735,32 +731,15 @@ describe("applyAuthChoice", () => {
     const prompter = createPrompter({});
     const runtime = createExitThrowingRuntime();
 
-    const stdin = process.stdin as NodeJS.ReadStream & { isTTY?: boolean };
-    const hadOwnIsTTY = Object.prototype.hasOwnProperty.call(stdin, "isTTY");
-    const previousIsTTYDescriptor = Object.getOwnPropertyDescriptor(stdin, "isTTY");
-    Object.defineProperty(stdin, "isTTY", {
-      configurable: true,
-      enumerable: true,
-      get: () => true,
+    const result = await applyAuthChoice({
+      authChoice: "github-copilot",
+      config: {},
+      prompter,
+      runtime,
+      setDefaultModel: true,
     });
 
-    try {
-      const result = await applyAuthChoice({
-        authChoice: "github-copilot",
-        config: {},
-        prompter,
-        runtime,
-        setDefaultModel: true,
-      });
-
-      expect(result.config.agents?.defaults?.model?.primary).toBe("github-copilot/gpt-4o");
-    } finally {
-      if (previousIsTTYDescriptor) {
-        Object.defineProperty(stdin, "isTTY", previousIsTTYDescriptor);
-      } else if (!hadOwnIsTTY) {
-        delete (stdin as { isTTY?: boolean }).isTTY;
-      }
-    }
+    expect(result.config.agents?.defaults?.model?.primary).toBe("github-copilot/gpt-4o");
   });
 
   it("does not override the default model when selecting opencode-zen without setDefaultModel", async () => {

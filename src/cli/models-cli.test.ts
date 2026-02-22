@@ -2,12 +2,10 @@ import { Command } from "commander";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { runRegisteredCli } from "../test-utils/command-runner.js";
 
-const githubCopilotLoginCommand = vi.fn();
 const modelsStatusCommand = vi.fn().mockResolvedValue(undefined);
 const noopAsync = vi.fn(async () => undefined);
 
 vi.mock("../commands/models.js", () => ({
-  githubCopilotLoginCommand,
   modelsStatusCommand,
   modelsAliasesAddCommand: noopAsync,
   modelsAliasesListCommand: noopAsync,
@@ -42,7 +40,6 @@ describe("models cli", () => {
   });
 
   beforeEach(() => {
-    githubCopilotLoginCommand.mockClear();
     modelsStatusCommand.mockClear();
   });
 
@@ -58,28 +55,6 @@ describe("models cli", () => {
       argv: args,
     });
   }
-
-  it("registers github-copilot login command", async () => {
-    const program = createProgram();
-    const models = program.commands.find((cmd) => cmd.name() === "models");
-    expect(models).toBeTruthy();
-
-    const auth = models?.commands.find((cmd) => cmd.name() === "auth");
-    expect(auth).toBeTruthy();
-
-    const login = auth?.commands.find((cmd) => cmd.name() === "login-github-copilot");
-    expect(login).toBeTruthy();
-
-    await program.parseAsync(["models", "auth", "login-github-copilot", "--yes"], {
-      from: "user",
-    });
-
-    expect(githubCopilotLoginCommand).toHaveBeenCalledTimes(1);
-    expect(githubCopilotLoginCommand).toHaveBeenCalledWith(
-      expect.objectContaining({ yes: true }),
-      expect.any(Object),
-    );
-  });
 
   it.each([
     { label: "status flag", args: ["models", "status", "--agent", "poe"] },
@@ -108,5 +83,13 @@ describe("models cli", () => {
       const error = err as { exitCode?: number };
       expect(error.exitCode).toBe(0);
     }
+  });
+
+  it("does not register github-copilot login command", () => {
+    const program = createProgram();
+    const models = program.commands.find((cmd) => cmd.name() === "models");
+    const auth = models?.commands.find((cmd) => cmd.name() === "auth");
+    const login = auth?.commands.find((cmd) => cmd.name() === "login-github-copilot");
+    expect(login).toBeUndefined();
   });
 });
