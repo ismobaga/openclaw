@@ -73,6 +73,8 @@ export type ChannelHeartbeatDeps = {
   hasActiveWebListener?: () => boolean;
 };
 
+export type ChannelKind = "chat";
+
 export type ChannelMeta = {
   id: ChannelId;
   label: string;
@@ -80,6 +82,8 @@ export type ChannelMeta = {
   docsPath: string;
   docsLabel?: string;
   blurb: string;
+  /** Classifies the channel type. Defaults to "chat" when unset. */
+  kind?: ChannelKind;
   order?: number;
   aliases?: string[];
   selectionDocsPrefix?: string;

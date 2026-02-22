@@ -125,6 +125,24 @@ export function listChatChannels(): ChatChannelMeta[] {
   return CHAT_CHANNEL_ORDER.map((id) => CHAT_CHANNEL_META[id]);
 }
 
+/** Returns true when a channel meta represents a chat/messaging channel. */
+export function isChatChannel(meta: ChannelMeta): boolean {
+  return (meta.kind ?? "chat") === "chat";
+}
+
+/**
+ * Lists all chat channels from the plugin registry (core built-ins + registered plugins),
+ * filtered to only those classified as messaging/chat channels.
+ */
+export function listAllChatChannels(): ChannelMeta[] {
+  const registry = requireActivePluginRegistry();
+  const pluginMetas = registry.channels.map((entry) => entry.plugin.meta).filter(isChatChannel);
+  const seen = new Set<string>(pluginMetas.map((m) => String(m.id)));
+  // Prepend core channels (in canonical order) that are not already provided by a plugin.
+  const coreMetas = listChatChannels().filter((m) => !seen.has(String(m.id)));
+  return [...coreMetas, ...pluginMetas];
+}
+
 export function listChatChannelAliases(): string[] {
   return Object.keys(CHAT_CHANNEL_ALIASES);
 }
