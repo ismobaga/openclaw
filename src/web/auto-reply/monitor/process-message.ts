@@ -5,6 +5,10 @@ import {
   formatInboundEnvelope,
   resolveEnvelopeFormatOptions,
 } from "../../../auto-reply/envelope.js";
+import {
+  buildHistoryContextFromEntries,
+  type HistoryEntry,
+} from "../../../auto-reply/reply/history.js";
 import { finalizeInboundContext } from "../../../auto-reply/reply/inbound-context.js";
 import { dispatchReplyWithBufferedBlockDispatcher } from "../../../auto-reply/reply/provider-dispatcher.js";
 import type { ReplyPayload } from "../../../auto-reply/types.js";

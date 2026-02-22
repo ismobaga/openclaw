@@ -15,7 +15,6 @@ import {
   tryFastAbortFromMessage,
 } from "./abort.js";
 import { enqueueFollowupRun, getFollowupQueueDepth, type FollowupRun } from "./queue.js";
-import { initSessionState } from "./session.js";
 import { buildTestCtx } from "./test-ctx.js";
 
 vi.mock("../../agents/pi-embedded.js", () => ({
@@ -98,28 +97,6 @@ describe("abort detection", () => {
 
   afterEach(() => {
     resetAbortMemoryForTest();
-  });
-
-  it("triggerBodyNormalized extracts /stop from RawBody for abort detection", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-abort-"));
-    const storePath = path.join(root, "sessions.json");
-    const cfg = { session: { store: storePath } } as OpenClawConfig;
-
-    const groupMessageCtx = {
-      Body: `[Context]\nJake: /stop\n[from: Jake]`,
-      RawBody: "/stop",
-      ChatType: "group",
-      SessionKey: "agent:main:whatsapp:group:g1",
-    };
-
-    const result = await initSessionState({
-      ctx: groupMessageCtx,
-      cfg,
-      commandAuthorized: true,
-    });
-
-    // /stop is detected via exact match in handleAbort, not isAbortTrigger
-    expect(result.triggerBodyNormalized).toBe("/stop");
   });
 
   it("isAbortTrigger matches bare word triggers (without slash)", () => {

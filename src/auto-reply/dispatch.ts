@@ -10,7 +10,6 @@ import {
   type ReplyDispatcherWithTypingOptions,
 } from "./reply/reply-dispatcher.js";
 import type { FinalizedMsgContext, MsgContext } from "./templating.js";
-import type { GetReplyOptions } from "./types.js";
 
 export type DispatchInboundResult = DispatchFromConfigResult;
 
@@ -36,8 +35,6 @@ export async function dispatchInboundMessage(params: {
   ctx: MsgContext | FinalizedMsgContext;
   cfg: OpenClawConfig;
   dispatcher: ReplyDispatcher;
-  replyOptions?: Omit<GetReplyOptions, "onToolResult" | "onBlockReply">;
-  replyResolver?: typeof import("./reply.js").getReplyFromConfig;
 }): Promise<DispatchInboundResult> {
   const finalized = finalizeInboundContext(params.ctx);
   return await withReplyDispatcher({
@@ -47,8 +44,6 @@ export async function dispatchInboundMessage(params: {
         ctx: finalized,
         cfg: params.cfg,
         dispatcher: params.dispatcher,
-        replyOptions: params.replyOptions,
-        replyResolver: params.replyResolver,
       }),
   });
 }
@@ -57,10 +52,8 @@ export async function dispatchInboundMessageWithBufferedDispatcher(params: {
   ctx: MsgContext | FinalizedMsgContext;
   cfg: OpenClawConfig;
   dispatcherOptions: ReplyDispatcherWithTypingOptions;
-  replyOptions?: Omit<GetReplyOptions, "onToolResult" | "onBlockReply">;
-  replyResolver?: typeof import("./reply.js").getReplyFromConfig;
 }): Promise<DispatchInboundResult> {
-  const { dispatcher, replyOptions, markDispatchIdle } = createReplyDispatcherWithTyping(
+  const { dispatcher, markDispatchIdle } = createReplyDispatcherWithTyping(
     params.dispatcherOptions,
   );
   try {
@@ -68,11 +61,6 @@ export async function dispatchInboundMessageWithBufferedDispatcher(params: {
       ctx: params.ctx,
       cfg: params.cfg,
       dispatcher,
-      replyResolver: params.replyResolver,
-      replyOptions: {
-        ...params.replyOptions,
-        ...replyOptions,
-      },
     });
   } finally {
     markDispatchIdle();
@@ -83,15 +71,11 @@ export async function dispatchInboundMessageWithDispatcher(params: {
   ctx: MsgContext | FinalizedMsgContext;
   cfg: OpenClawConfig;
   dispatcherOptions: ReplyDispatcherOptions;
-  replyOptions?: Omit<GetReplyOptions, "onToolResult" | "onBlockReply">;
-  replyResolver?: typeof import("./reply.js").getReplyFromConfig;
 }): Promise<DispatchInboundResult> {
   const dispatcher = createReplyDispatcher(params.dispatcherOptions);
   return await dispatchInboundMessage({
     ctx: params.ctx,
     cfg: params.cfg,
     dispatcher,
-    replyResolver: params.replyResolver,
-    replyOptions: params.replyOptions,
   });
 }

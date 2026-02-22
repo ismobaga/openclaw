@@ -1,6 +1,5 @@
 import { hasControlCommand } from "../../auto-reply/command-detection.js";
 import { resolveInboundDebounceMs } from "../../auto-reply/inbound-debounce.js";
-import { getReplyFromConfig } from "../../auto-reply/reply.js";
 import { DEFAULT_GROUP_HISTORY_LIMIT } from "../../auto-reply/reply/history.js";
 import { formatCliCommand } from "../../cli/command-format.js";
 import { waitForever } from "../../cli/wait.js";
@@ -35,7 +34,6 @@ export async function monitorWebChannel(
   verbose: boolean,
   listenerFactory: typeof monitorWebInbox | undefined = monitorWebInbox,
   keepAlive = true,
-  replyResolver: typeof getReplyFromConfig | undefined = getReplyFromConfig,
   runtime: RuntimeEnv = defaultRuntime,
   abortSignal?: AbortSignal,
   tuning: WebMonitorTuning = {},
@@ -169,7 +167,6 @@ export async function monitorWebChannel(
       groupMemberNames,
       echoTracker,
       backgroundTasks,
-      replyResolver: replyResolver ?? getReplyFromConfig,
       replyLogger,
       baseMentionConfig,
       account,

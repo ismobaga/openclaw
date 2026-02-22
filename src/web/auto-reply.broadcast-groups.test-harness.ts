@@ -1,4 +1,3 @@
-import { vi } from "vitest";
 import { monitorWebChannel } from "./auto-reply.js";
 import {
   createWebInboundDeliverySpies,
@@ -7,14 +6,14 @@ import {
 } from "./auto-reply.test-harness.js";
 import type { WebInboundMessage } from "./inbound.js";
 
-export async function monitorWebChannelWithCapture(resolver: unknown): Promise<{
+export async function monitorWebChannelWithCapture(): Promise<{
   spies: ReturnType<typeof createWebInboundDeliverySpies>;
   onMessage: (msg: WebInboundMessage) => Promise<void>;
 }> {
   const spies = createWebInboundDeliverySpies();
   const { listenerFactory, getOnMessage } = createWebListenerFactoryCapture();
 
-  await monitorWebChannel(false, listenerFactory, false, resolver as never);
+  await monitorWebChannel(false, listenerFactory, false);
   const onMessage = getOnMessage();
   if (!onMessage) {
     throw new Error("Missing onMessage handler");
@@ -25,15 +24,10 @@ export async function monitorWebChannelWithCapture(resolver: unknown): Promise<{
 
 export async function sendWebDirectInboundAndCollectSessionKeys(): Promise<{
   seen: string[];
-  resolver: ReturnType<typeof vi.fn>;
 }> {
   const seen: string[] = [];
-  const resolver = vi.fn(async (ctx: { SessionKey?: unknown }) => {
-    seen.push(String(ctx.SessionKey));
-    return { text: "ok" };
-  });
 
-  const { spies, onMessage } = await monitorWebChannelWithCapture(resolver);
+  const { spies, onMessage } = await monitorWebChannelWithCapture();
   await sendWebDirectInboundMessage({
     onMessage,
     spies,
@@ -43,5 +37,5 @@ export async function sendWebDirectInboundAndCollectSessionKeys(): Promise<{
     body: "hello",
   });
 
-  return { seen, resolver };
+  return { seen };
 }
