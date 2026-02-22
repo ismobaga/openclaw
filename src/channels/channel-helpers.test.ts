@@ -1,8 +1,13 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { MsgContext } from "../auto-reply/templating.js";
+import type { ChannelPlugin } from "../channels/plugins/types.js";
+import type { PluginRegistry } from "../plugins/registry.js";
+import { setActivePluginRegistry } from "../plugins/runtime.js";
 import { resolveConversationLabel } from "./conversation-label.js";
 import {
   formatChannelSelectionLine,
+  isChatChannel,
+  listAllChatChannels,
   listChatChannels,
   normalizeChatChannelId,
 } from "./registry.js";
@@ -14,7 +19,51 @@ const flushMicrotasks = async () => {
   await Promise.resolve();
 };
 
+const createRegistry = (channels: PluginRegistry["channels"]): PluginRegistry => ({
+  plugins: [],
+  tools: [],
+  hooks: [],
+  typedHooks: [],
+  channels,
+  commands: [],
+  providers: [],
+  gatewayHandlers: {},
+  httpHandlers: [],
+  httpRoutes: [],
+  cliRegistrars: [],
+  services: [],
+  diagnostics: [],
+});
+
+const emptyRegistry = createRegistry([]);
+
+const msteamsPlugin = {
+  id: "msteams",
+  meta: {
+    id: "msteams",
+    label: "Microsoft Teams",
+    selectionLabel: "Microsoft Teams (Bot Framework)",
+    docsPath: "/channels/msteams",
+    blurb: "Bot Framework; enterprise support.",
+    kind: "chat" as const,
+    aliases: ["teams"],
+  },
+  capabilities: { chatTypes: ["direct"] },
+  config: {
+    listAccountIds: () => [],
+    resolveAccount: () => ({}),
+  },
+} satisfies ChannelPlugin;
+
 describe("channel registry helpers", () => {
+  beforeEach(() => {
+    setActivePluginRegistry(emptyRegistry);
+  });
+
+  afterEach(() => {
+    setActivePluginRegistry(emptyRegistry);
+  });
+
   it("normalizes aliases + trims whitespace", () => {
     expect(normalizeChatChannelId(" imsg ")).toBe("imessage");
     expect(normalizeChatChannelId("gchat")).toBe("googlechat");
@@ -47,6 +96,57 @@ describe("channel registry helpers", () => {
     expect(line).not.toContain("Docs:");
     expect(line).toContain("/channels/telegram");
     expect(line).toContain("https://openclaw.ai");
+  });
+});
+
+describe("isChatChannel", () => {
+  it("returns true when kind is 'chat'", () => {
+    expect(
+      isChatChannel({
+        id: "telegram",
+        label: "Telegram",
+        selectionLabel: "",
+        docsPath: "",
+        blurb: "",
+        kind: "chat",
+      }),
+    ).toBe(true);
+  });
+
+  it("defaults to true when kind is absent", () => {
+    expect(
+      isChatChannel({
+        id: "telegram",
+        label: "Telegram",
+        selectionLabel: "",
+        docsPath: "",
+        blurb: "",
+      }),
+    ).toBe(true);
+  });
+});
+
+describe("listAllChatChannels", () => {
+  beforeEach(() => {
+    setActivePluginRegistry(emptyRegistry);
+  });
+
+  afterEach(() => {
+    setActivePluginRegistry(emptyRegistry);
+  });
+
+  it("returns core chat channels when no plugins are registered", () => {
+    const channels = listAllChatChannels();
+    expect(channels.length).toBeGreaterThanOrEqual(8);
+    expect(channels[0]?.id).toBe("telegram");
+  });
+
+  it("includes a registered chat plugin", () => {
+    setActivePluginRegistry(
+      createRegistry([{ pluginId: "msteams", plugin: msteamsPlugin, source: "test" }]),
+    );
+    const channels = listAllChatChannels();
+    expect(channels.some((c) => c.id === "msteams")).toBe(true);
   });
 });
 

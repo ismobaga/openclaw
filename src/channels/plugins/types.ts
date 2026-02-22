@@ -40,6 +40,7 @@ export type {
   ChannelGroupContext,
   ChannelHeartbeatDeps,
   ChannelId,
+  ChannelKind,
   ChannelLogSink,
   ChannelMentionAdapter,
   ChannelMessageActionAdapter,
