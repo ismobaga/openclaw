@@ -608,7 +608,7 @@ export async function registerSlackMonitorSlashCommands(params: {
         runtime.error?.(danger(`slack slash: failed updating session meta: ${String(err)}`));
       }
 
-      const { onModelSelected, ...prefixOptions } = createReplyPrefixOptions({
+      const prefixOptions = createReplyPrefixOptions({
         cfg,
         agentId: route.agentId,
         channel: "slack",
@@ -645,10 +645,6 @@ export async function registerSlackMonitorSlashCommands(params: {
           onError: (err, info) => {
             runtime.error?.(danger(`slack slash ${info.kind} reply failed: ${String(err)}`));
           },
-        },
-        replyOptions: {
-          skillFilter: channelConfig?.skills,
-          onModelSelected,
         },
       });
       if (counts.final + counts.tool + counts.block === 0) {

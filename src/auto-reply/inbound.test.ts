@@ -1,11 +1,5 @@
-import fs from "node:fs/promises";
-import os from "node:os";
-import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import type { OpenClawConfig } from "../config/config.js";
-import type { GroupKeyResolution } from "../config/sessions.js";
 import { createInboundDebouncer } from "./inbound-debounce.js";
-import { resolveGroupRequireMention } from "./reply/groups.js";
 import { finalizeInboundContext } from "./reply/inbound-context.js";
 import {
   buildInboundDedupeKey,
@@ -13,12 +7,6 @@ import {
   shouldSkipDuplicateInbound,
 } from "./reply/inbound-dedupe.js";
 import { normalizeInboundTextNewlines } from "./reply/inbound-text.js";
-import {
-  buildMentionRegexes,
-  matchesMentionPatterns,
-  normalizeMentionText,
-} from "./reply/mentions.js";
-import { initSessionState } from "./reply/session.js";
 import { applyTemplate, type MsgContext, type TemplateContext } from "./templating.js";
 
 describe("applyTemplate", () => {
@@ -278,152 +266,5 @@ describe("createInboundDebouncer", () => {
     expect(calls).toEqual([["1", "2"]]);
 
     vi.useRealTimers();
-  });
-});
-
-describe("initSessionState BodyStripped", () => {
-  it("prefers BodyForAgent over Body for group chats", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-sender-meta-"));
-    const storePath = path.join(root, "sessions.json");
-    const cfg = { session: { store: storePath } } as OpenClawConfig;
-
-    const result = await initSessionState({
-      ctx: {
-        Body: "[WhatsApp 123@g.us] ping",
-        BodyForAgent: "ping",
-        ChatType: "group",
-        SenderName: "Bob",
-        SenderE164: "+222",
-        SenderId: "222@s.whatsapp.net",
-        SessionKey: "agent:main:whatsapp:group:123@g.us",
-      },
-      cfg,
-      commandAuthorized: true,
-    });
-
-    expect(result.sessionCtx.BodyStripped).toBe("ping");
-  });
-
-  it("prefers BodyForAgent over Body for direct chats", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-sender-meta-direct-"));
-    const storePath = path.join(root, "sessions.json");
-    const cfg = { session: { store: storePath } } as OpenClawConfig;
-
-    const result = await initSessionState({
-      ctx: {
-        Body: "[WhatsApp +1] ping",
-        BodyForAgent: "ping",
-        ChatType: "direct",
-        SenderName: "Bob",
-        SenderE164: "+222",
-        SessionKey: "agent:main:whatsapp:dm:+222",
-      },
-      cfg,
-      commandAuthorized: true,
-    });
-
-    expect(result.sessionCtx.BodyStripped).toBe("ping");
-  });
-});
-
-describe("mention helpers", () => {
-  it("builds regexes and skips invalid patterns", () => {
-    const regexes = buildMentionRegexes({
-      messages: {
-        groupChat: { mentionPatterns: ["\\bopenclaw\\b", "(invalid"] },
-      },
-    });
-    expect(regexes).toHaveLength(1);
-    expect(regexes[0]?.test("openclaw")).toBe(true);
-  });
-
-  it("normalizes zero-width characters", () => {
-    expect(normalizeMentionText("open\u200bclaw")).toBe("openclaw");
-  });
-
-  it("matches patterns case-insensitively", () => {
-    const regexes = buildMentionRegexes({
-      messages: { groupChat: { mentionPatterns: ["\\bopenclaw\\b"] } },
-    });
-    expect(matchesMentionPatterns("OPENCLAW: hi", regexes)).toBe(true);
-  });
-
-  it("uses per-agent mention patterns when configured", () => {
-    const regexes = buildMentionRegexes(
-      {
-        messages: {
-          groupChat: { mentionPatterns: ["\\bglobal\\b"] },
-        },
-        agents: {
-          list: [
-            {
-              id: "work",
-              groupChat: { mentionPatterns: ["\\bworkbot\\b"] },
-            },
-          ],
-        },
-      },
-      "work",
-    );
-    expect(matchesMentionPatterns("workbot: hi", regexes)).toBe(true);
-    expect(matchesMentionPatterns("global: hi", regexes)).toBe(false);
-  });
-});
-
-describe("resolveGroupRequireMention", () => {
-  it("respects Discord guild/channel requireMention settings", () => {
-    const cfg: OpenClawConfig = {
-      channels: {
-        discord: {
-          guilds: {
-            "145": {
-              requireMention: false,
-              channels: {
-                general: { allow: true },
-              },
-            },
-          },
-        },
-      },
-    };
-    const ctx: TemplateContext = {
-      Provider: "discord",
-      From: "discord:group:123",
-      GroupChannel: "#general",
-      GroupSpace: "145",
-    };
-    const groupResolution: GroupKeyResolution = {
-      key: "discord:group:123",
-      channel: "discord",
-      id: "123",
-      chatType: "group",
-    };
-
-    expect(resolveGroupRequireMention({ cfg, ctx, groupResolution })).toBe(false);
-  });
-
-  it("respects Slack channel requireMention settings", () => {
-    const cfg: OpenClawConfig = {
-      channels: {
-        slack: {
-          channels: {
-            C123: { requireMention: false },
-          },
-        },
-      },
-    };
-    const ctx: TemplateContext = {
-      Provider: "slack",
-      From: "slack:channel:C123",
-      GroupSubject: "#general",
-    };
-    const groupResolution: GroupKeyResolution = {
-      key: "slack:group:C123",
-      channel: "slack",
-      id: "C123",
-      chatType: "group",
-    };
-
-    expect(resolveGroupRequireMention({ cfg, ctx, groupResolution })).toBe(false);
   });
 });

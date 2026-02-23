@@ -105,7 +105,7 @@ async function processTwitchMessage(params: {
     channel: "twitch",
     accountId,
   });
-  const { onModelSelected, ...prefixOptions } = createReplyPrefixOptions({
+  const prefixOptions = createReplyPrefixOptions({
     cfg,
     agentId: route.agentId,
     channel: "twitch",
@@ -129,9 +129,6 @@ async function processTwitchMessage(params: {
           statusSink,
         });
       },
-    },
-    replyOptions: {
-      onModelSelected,
     },
   });
 }

@@ -1,5 +1,5 @@
 import "./test-helpers.js";
-import { describe, expect, it, vi } from "vitest";
+import { describe, it, vi } from "vitest";
 import type { OpenClawConfig } from "../config/config.js";
 import { monitorWebChannel } from "./auto-reply.js";
 import {
@@ -15,26 +15,10 @@ installWebAutoReplyTestHomeHooks();
 describe("typing controller idle", () => {
   installWebAutoReplyUnitTestHooks();
 
-  it("marks dispatch idle after replies flush", async () => {
-    const markDispatchIdle = vi.fn();
-    const typingMock = {
-      onReplyStart: vi.fn(async () => {}),
-      startTypingLoop: vi.fn(async () => {}),
-      startTypingOnText: vi.fn(async () => {}),
-      refreshTypingTtl: vi.fn(),
-      isActive: vi.fn(() => false),
-      markRunComplete: vi.fn(),
-      markDispatchIdle,
-      cleanup: vi.fn(),
-    };
+  it("processes messages without error (AI runner removed)", async () => {
     const reply = vi.fn().mockResolvedValue(undefined);
     const sendComposing = vi.fn().mockResolvedValue(undefined);
     const sendMedia = vi.fn().mockResolvedValue(undefined);
-
-    const replyResolver = vi.fn().mockImplementation(async (_ctx, opts) => {
-      opts?.onTypingController?.(typingMock);
-      return { text: "final reply" };
-    });
 
     const mockConfig: OpenClawConfig = {
       channels: { whatsapp: { allowFrom: ["*"] } },
@@ -62,11 +46,8 @@ describe("typing controller idle", () => {
         return createMockWebListener();
       },
       false,
-      replyResolver,
     );
 
     resetLoadConfigMock();
-
-    expect(markDispatchIdle).toHaveBeenCalled();
   });
 });

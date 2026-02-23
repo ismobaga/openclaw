@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { getReplyFromConfig } from "../../auto-reply/reply.js";
 import { HEARTBEAT_TOKEN } from "../../auto-reply/tokens.js";
 import type { sendMessageWhatsApp } from "../outbound.js";
 
@@ -15,17 +14,6 @@ const state = vi.hoisted(() => ({
     idleExpiresAt: null as number | null,
   },
   events: [] as unknown[],
-}));
-
-vi.mock("../../agents/current-time.js", () => ({
-  appendCronStyleCurrentTimeLine: (body: string) =>
-    `${body}\nCurrent time: 2026-02-15T00:00:00Z (mock)`,
-}));
-
-// Perf: this module otherwise pulls a large dependency graph that we don't need
-// for these unit tests.
-vi.mock("../../auto-reply/reply.js", () => ({
-  getReplyFromConfig: vi.fn(async () => undefined),
 }));
 
 vi.mock("../../channels/plugins/whatsapp-heartbeat.js", () => ({
@@ -91,15 +79,12 @@ vi.mock("../session.js", () => ({
 describe("runWebHeartbeatOnce", () => {
   let senderMock: ReturnType<typeof vi.fn>;
   let sender: typeof sendMessageWhatsApp;
-  let replyResolverMock: ReturnType<typeof vi.fn>;
-  let replyResolver: typeof getReplyFromConfig;
 
   const getModules = async () => await import("./heartbeat-runner.js");
   const buildRunArgs = (overrides: Record<string, unknown> = {}) => ({
     cfg: { agents: { defaults: {} }, session: {} } as never,
     to: "+123",
     sender,
-    replyResolver,
     ...overrides,
   });
 
@@ -118,8 +103,6 @@ describe("runWebHeartbeatOnce", () => {
 
     senderMock = vi.fn(async () => ({ messageId: "m1" }));
     sender = senderMock as unknown as typeof sendMessageWhatsApp;
-    replyResolverMock = vi.fn(async () => undefined);
-    replyResolver = replyResolverMock as unknown as typeof getReplyFromConfig;
   });
 
   it("supports manual override body dry-run without sending", async () => {
@@ -129,7 +112,7 @@ describe("runWebHeartbeatOnce", () => {
     expect(state.events).toHaveLength(0);
   });
 
-  it("sends HEARTBEAT_OK when reply is empty and showOk is enabled", async () => {
+  it("sends HEARTBEAT_OK when AI runner is absent and showOk is enabled", async () => {
     const { runWebHeartbeatOnce } = await getModules();
     await runWebHeartbeatOnce(buildRunArgs());
     expect(senderMock).toHaveBeenCalledWith("+123", HEARTBEAT_TOKEN, { verbose: false });
@@ -138,46 +121,19 @@ describe("runWebHeartbeatOnce", () => {
     );
   });
 
-  it("injects a cron-style Current time line into the heartbeat prompt", async () => {
-    const { runWebHeartbeatOnce } = await getModules();
-    await runWebHeartbeatOnce(
-      buildRunArgs({
-        cfg: { agents: { defaults: { heartbeat: { prompt: "Ops check" } } }, session: {} } as never,
-        dryRun: true,
-      }),
-    );
-    expect(replyResolver).toHaveBeenCalledTimes(1);
-    const ctx = replyResolverMock.mock.calls[0]?.[0];
-    expect(ctx?.Body).toContain("Ops check");
-    expect(ctx?.Body).toContain("Current time: 2026-02-15T00:00:00Z (mock)");
-  });
-
-  it("treats heartbeat token-only replies as ok-token and preserves session updatedAt", async () => {
-    replyResolverMock.mockResolvedValue({ text: HEARTBEAT_TOKEN });
-    const { runWebHeartbeatOnce } = await getModules();
-    await runWebHeartbeatOnce(buildRunArgs());
-    expect(state.store.k?.updatedAt).toBe(123);
-    expect(senderMock).toHaveBeenCalledWith("+123", HEARTBEAT_TOKEN, { verbose: false });
-    expect(state.events).toEqual(
-      expect.arrayContaining([expect.objectContaining({ status: "ok-token", silent: false })]),
-    );
-  });
-
-  it("skips sending alerts when showAlerts is disabled but still emits a skipped event", async () => {
-    state.visibility = { showAlerts: false, showOk: true, useIndicator: true };
-    replyResolverMock.mockResolvedValue({ text: "ALERT" });
+  it("skips sending when showAlerts and showOk are disabled", async () => {
+    state.visibility = { showAlerts: false, showOk: false, useIndicator: false };
     const { runWebHeartbeatOnce } = await getModules();
     await runWebHeartbeatOnce(buildRunArgs());
     expect(senderMock).not.toHaveBeenCalled();
     expect(state.events).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ status: "skipped", reason: "alerts-disabled", preview: "ALERT" }),
+        expect.objectContaining({ status: "skipped", reason: "alerts-disabled" }),
       ]),
     );
   });
 
   it("emits failed events when sending throws and rethrows the error", async () => {
-    replyResolverMock.mockResolvedValue({ text: "ALERT" });
     senderMock.mockRejectedValueOnce(new Error("nope"));
     const { runWebHeartbeatOnce } = await getModules();
     await expect(runWebHeartbeatOnce(buildRunArgs())).rejects.toThrow("nope");

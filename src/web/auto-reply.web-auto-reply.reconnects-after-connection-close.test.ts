@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
-import { escapeRegExp, formatEnvelopeTimestamp } from "../../test/helpers/envelope-timestamp.js";
+import { formatEnvelopeTimestamp } from "../../test/helpers/envelope-timestamp.js";
 import { withEnvAsync } from "../test-utils/env.js";
 import {
   installWebAutoReplyTestHomeHooks,
@@ -33,7 +33,6 @@ function startMonitorWebChannel(params: {
     false,
     params.listenerFactory as never,
     true,
-    async () => ({ text: "ok" }),
     runtime as never,
     params.signal ?? controller.signal,
     {
@@ -207,7 +206,6 @@ describe("web auto-reply", () => {
       false,
       listenerFactory as never,
       true,
-      async () => ({ text: "ok" }),
       runtime as never,
       undefined,
       {
@@ -248,7 +246,6 @@ describe("web auto-reply", () => {
         const sendMedia = vi.fn();
         const reply = vi.fn().mockResolvedValue(undefined);
         const sendComposing = vi.fn();
-        const resolver = vi.fn().mockResolvedValue({ text: "ok" });
 
         let capturedOnMessage:
           | ((msg: import("./inbound.js").WebInboundMessage) => Promise<void>)
@@ -269,7 +266,7 @@ describe("web auto-reply", () => {
           session: { store: store.storePath },
         }));
 
-        await monitorWebChannel(false, listenerFactory as never, false, resolver);
+        await monitorWebChannel(false, listenerFactory as never, false);
         expect(capturedOnMessage).toBeDefined();
 
         // Two messages from the same sender with fixed timestamps
@@ -298,21 +295,8 @@ describe("web auto-reply", () => {
           }),
         );
 
-        expect(resolver).toHaveBeenCalledTimes(2);
-        const firstArgs = resolver.mock.calls[0][0];
-        const secondArgs = resolver.mock.calls[1][0];
-        const firstTimestamp = formatEnvelopeTimestamp(new Date("2025-01-01T00:00:00Z"));
-        const secondTimestamp = formatEnvelopeTimestamp(new Date("2025-01-01T01:00:00Z"));
-        const firstPattern = escapeRegExp(firstTimestamp);
-        const secondPattern = escapeRegExp(secondTimestamp);
-        expect(firstArgs.Body).toMatch(
-          new RegExp(`\\[WhatsApp \\+1 (\\+\\d+[smhd] )?${firstPattern}\\] \\[openclaw\\] first`),
-        );
-        expect(firstArgs.Body).not.toContain("second");
-        expect(secondArgs.Body).toMatch(
-          new RegExp(`\\[WhatsApp \\+1 (\\+\\d+[smhd] )?${secondPattern}\\] \\[openclaw\\] second`),
-        );
-        expect(secondArgs.Body).not.toContain("first");
+        // Messages dispatched — no AI runner to verify (removed in Phase 2)
+        // Just verify that messages were processed without errors
 
         // Max listeners bumped to avoid warnings in multi-instance test runs
         expect(process.getMaxListeners?.()).toBeGreaterThanOrEqual(50);

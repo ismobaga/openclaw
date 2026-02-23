@@ -616,7 +616,7 @@ export function createMatrixRoomMessageHandler(params: MatrixMonitorHandlerParam
         channel: "matrix",
         accountId: route.accountId,
       });
-      const { onModelSelected, ...prefixOptions } = createReplyPrefixOptions({
+      const prefixOptions = createReplyPrefixOptions({
         cfg,
         agentId: route.agentId,
         channel: "matrix",
@@ -644,40 +644,34 @@ export function createMatrixRoomMessageHandler(params: MatrixMonitorHandlerParam
           });
         },
       });
-      const { dispatcher, replyOptions, markDispatchIdle } =
-        core.channel.reply.createReplyDispatcherWithTyping({
-          ...prefixOptions,
-          humanDelay: core.channel.reply.resolveHumanDelayConfig(cfg, route.agentId),
-          deliver: async (payload) => {
-            await deliverMatrixReplies({
-              replies: [payload],
-              roomId,
-              client,
-              runtime,
-              textLimit,
-              replyToMode,
-              threadId: threadTarget,
-              accountId: route.accountId,
-              tableMode,
-            });
-            didSendReply = true;
-          },
-          onError: (err, info) => {
-            runtime.error?.(`matrix ${info.kind} reply failed: ${String(err)}`);
-          },
-          onReplyStart: typingCallbacks.onReplyStart,
-          onIdle: typingCallbacks.onIdle,
-        });
+      const { dispatcher, markDispatchIdle } = core.channel.reply.createReplyDispatcherWithTyping({
+        ...prefixOptions,
+        humanDelay: core.channel.reply.resolveHumanDelayConfig(cfg, route.agentId),
+        deliver: async (payload) => {
+          await deliverMatrixReplies({
+            replies: [payload],
+            roomId,
+            client,
+            runtime,
+            textLimit,
+            replyToMode,
+            threadId: threadTarget,
+            accountId: route.accountId,
+            tableMode,
+          });
+          didSendReply = true;
+        },
+        onError: (err, info) => {
+          runtime.error?.(`matrix ${info.kind} reply failed: ${String(err)}`);
+        },
+        onReplyStart: typingCallbacks.onReplyStart,
+        onIdle: typingCallbacks.onIdle,
+      });
 
       const { queuedFinal, counts } = await core.channel.reply.dispatchReplyFromConfig({
         ctx: ctxPayload,
         cfg,
         dispatcher,
-        replyOptions: {
-          ...replyOptions,
-          skillFilter: roomConfig?.skills,
-          onModelSelected,
-        },
       });
       markDispatchIdle();
       if (!queuedFinal) {

@@ -111,7 +111,6 @@ export const dispatchTelegramMessage = async ({
     historyLimit,
     groupHistories,
     route,
-    skillFilter,
     sendTyping,
     sendRecordVoice,
     ackReactionPromise,
@@ -199,7 +198,6 @@ export const dispatchTelegramMessage = async ({
   };
   const answerLane = lanes.answer;
   const reasoningLane = lanes.reasoning;
-  let splitReasoningOnNextStream = false;
   const reasoningStepState = createTelegramReasoningStepState();
   type SplitLaneSegment = { lane: LaneName; text: string };
   const splitTextIntoLaneSegments = (text?: string): SplitLaneSegment[] => {
@@ -213,42 +211,6 @@ export const dispatchTelegramMessage = async ({
     }
     return segments;
   };
-  const resetDraftLaneState = (lane: DraftLaneState) => {
-    lane.lastPartialText = "";
-    lane.hasStreamedMessage = false;
-  };
-  const updateDraftFromPartial = (lane: DraftLaneState, text: string | undefined) => {
-    const laneStream = lane.stream;
-    if (!laneStream || !text) {
-      return;
-    }
-    if (text === lane.lastPartialText) {
-      return;
-    }
-    // Mark that we've received streaming content (for forceNewMessage decision).
-    lane.hasStreamedMessage = true;
-    // Some providers briefly emit a shorter prefix snapshot (for example
-    // "Sure." -> "Sure" -> "Sure."). Keep the longer preview to avoid
-    // visible punctuation flicker.
-    if (
-      lane.lastPartialText &&
-      lane.lastPartialText.startsWith(text) &&
-      text.length < lane.lastPartialText.length
-    ) {
-      return;
-    }
-    lane.lastPartialText = text;
-    laneStream.update(text);
-  };
-  const ingestDraftLaneSegments = (text: string | undefined) => {
-    for (const segment of splitTextIntoLaneSegments(text)) {
-      if (segment.lane === "reasoning") {
-        reasoningStepState.noteReasoningHint();
-        reasoningStepState.noteReasoningDelivered();
-      }
-      updateDraftFromPartial(lanes[segment.lane], segment.text);
-    }
-  };
   const flushDraftLane = async (lane: DraftLaneState) => {
     if (!lane.stream) {
       return;
@@ -256,17 +218,7 @@ export const dispatchTelegramMessage = async ({
     await lane.stream.flush();
   };
 
-  const disableBlockStreaming = !previewStreamingEnabled
-    ? true
-    : forceBlockStreamingForReasoning
-      ? false
-      : typeof telegramCfg.blockStreaming === "boolean"
-        ? !telegramCfg.blockStreaming
-        : canStreamAnswerDraft
-          ? true
-          : undefined;
-
-  const { onModelSelected, ...prefixOptions } = createReplyPrefixOptions({
+  const prefixOptions = createReplyPrefixOptions({
     cfg,
     agentId: route.agentId,
     channel: "telegram",
@@ -693,55 +645,6 @@ export const dispatchTelegramMessage = async ({
             });
           },
         }).onReplyStart,
-      },
-      replyOptions: {
-        skillFilter,
-        disableBlockStreaming,
-        onPartialReply:
-          answerLane.stream || reasoningLane.stream
-            ? (payload) => ingestDraftLaneSegments(payload.text)
-            : undefined,
-        onReasoningStream: reasoningLane.stream
-          ? (payload) => {
-              // Split between reasoning blocks only when the next reasoning
-              // stream starts. Splitting at reasoning-end can orphan the active
-              // preview and cause duplicate reasoning sends on reasoning final.
-              if (splitReasoningOnNextStream) {
-                reasoningLane.stream?.forceNewMessage();
-                resetDraftLaneState(reasoningLane);
-                splitReasoningOnNextStream = false;
-              }
-              ingestDraftLaneSegments(payload.text);
-            }
-          : undefined,
-        onAssistantMessageStart: answerLane.stream
-          ? async () => {
-              reasoningStepState.resetForNextStep();
-              if (answerLane.hasStreamedMessage) {
-                const previewMessageId = answerLane.stream?.messageId();
-                if (typeof previewMessageId === "number") {
-                  archivedAnswerPreviews.push({
-                    messageId: previewMessageId,
-                    textSnapshot: answerLane.lastPartialText,
-                  });
-                }
-                answerLane.stream?.forceNewMessage();
-              }
-              resetDraftLaneState(answerLane);
-            }
-          : undefined,
-        onReasoningEnd: reasoningLane.stream
-          ? () => {
-              // Split when/if a later reasoning block begins.
-              splitReasoningOnNextStream = reasoningLane.hasStreamedMessage;
-            }
-          : undefined,
-        onToolStart: statusReactionController
-          ? async (payload) => {
-              await statusReactionController.setTool(payload.name);
-            }
-          : undefined,
-        onModelSelected,
       },
     }));
   } finally {

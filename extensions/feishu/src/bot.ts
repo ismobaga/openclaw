@@ -865,18 +865,15 @@ export async function handleFeishuMessage(params: {
         OriginatingTo: feishuTo,
       });
 
-      const {
-        dispatcher: permDispatcher,
-        replyOptions: permReplyOptions,
-        markDispatchIdle: markPermIdle,
-      } = createFeishuReplyDispatcher({
-        cfg,
-        agentId: route.agentId,
-        runtime: runtime as RuntimeEnv,
-        chatId: ctx.chatId,
-        replyToMessageId: ctx.messageId,
-        accountId: account.accountId,
-      });
+      const { dispatcher: permDispatcher, markDispatchIdle: markPermIdle } =
+        createFeishuReplyDispatcher({
+          cfg,
+          agentId: route.agentId,
+          runtime: runtime as RuntimeEnv,
+          chatId: ctx.chatId,
+          replyToMessageId: ctx.messageId,
+          accountId: account.accountId,
+        });
 
       log(`feishu[${account.accountId}]: dispatching permission error notification to agent`);
 
@@ -884,7 +881,6 @@ export async function handleFeishuMessage(params: {
         ctx: permissionCtx,
         cfg,
         dispatcher: permDispatcher,
-        replyOptions: permReplyOptions,
       });
 
       markPermIdle();
@@ -954,7 +950,7 @@ export async function handleFeishuMessage(params: {
       ...mediaPayload,
     });
 
-    const { dispatcher, replyOptions, markDispatchIdle } = createFeishuReplyDispatcher({
+    const { dispatcher, markDispatchIdle } = createFeishuReplyDispatcher({
       cfg,
       agentId: route.agentId,
       runtime: runtime as RuntimeEnv,
@@ -970,7 +966,6 @@ export async function handleFeishuMessage(params: {
       ctx: ctxPayload,
       cfg,
       dispatcher,
-      replyOptions,
     });
 
     markDispatchIdle();

@@ -11,11 +11,7 @@ import { resolveStorePath, updateLastRoute } from "../../../config/sessions.js";
 import { danger, logVerbose, shouldLogVerbose } from "../../../globals.js";
 import { removeSlackReaction } from "../../actions.js";
 import { createSlackDraftStream } from "../../draft-stream.js";
-import {
-  applyAppendOnlyStreamUpdate,
-  buildStatusFinalPreviewText,
-  resolveSlackStreamingConfig,
-} from "../../stream-mode.js";
+import { resolveSlackStreamingConfig } from "../../stream-mode.js";
 import type { SlackStreamSession } from "../../streaming.js";
 import { appendSlackStream, startSlackStream, stopSlackStream } from "../../streaming.js";
 import { resolveSlackThreadTargets } from "../../threading.js";
@@ -145,7 +141,7 @@ export async function dispatchPreparedSlackMessage(prepared: PreparedSlackMessag
     },
   });
 
-  const { onModelSelected, ...prefixOptions } = createReplyPrefixOptions({
+  const prefixOptions = createReplyPrefixOptions({
     cfg,
     agentId: route.agentId,
     channel: "slack",
@@ -234,7 +230,7 @@ export async function dispatchPreparedSlackMessage(prepared: PreparedSlackMessag
     }
   };
 
-  const { dispatcher, replyOptions, markDispatchIdle } = createReplyDispatcherWithTyping({
+  const { dispatcher, markDispatchIdle } = createReplyDispatcherWithTyping({
     ...prefixOptions,
     humanDelay: resolveHumanDelayConfig(cfg, route.agentId),
     deliver: async (payload) => {
@@ -314,81 +310,10 @@ export async function dispatchPreparedSlackMessage(prepared: PreparedSlackMessag
   });
   let hasStreamedMessage = false;
   const streamMode = slackStreaming.draftMode;
-  let appendRenderedText = "";
-  let appendSourceText = "";
-  let statusUpdateCount = 0;
-  const updateDraftFromPartial = (text?: string) => {
-    const trimmed = text?.trimEnd();
-    if (!trimmed) {
-      return;
-    }
-
-    if (streamMode === "append") {
-      const next = applyAppendOnlyStreamUpdate({
-        incoming: trimmed,
-        rendered: appendRenderedText,
-        source: appendSourceText,
-      });
-      appendRenderedText = next.rendered;
-      appendSourceText = next.source;
-      if (!next.changed) {
-        return;
-      }
-      draftStream.update(next.rendered);
-      hasStreamedMessage = true;
-      return;
-    }
-
-    if (streamMode === "status_final") {
-      statusUpdateCount += 1;
-      if (statusUpdateCount > 1 && statusUpdateCount % 4 !== 0) {
-        return;
-      }
-      draftStream.update(buildStatusFinalPreviewText(statusUpdateCount));
-      hasStreamedMessage = true;
-      return;
-    }
-
-    draftStream.update(trimmed);
-    hasStreamedMessage = true;
-  };
-  const onDraftBoundary =
-    useStreaming || !previewStreamingEnabled
-      ? undefined
-      : async () => {
-          if (hasStreamedMessage) {
-            draftStream.forceNewMessage();
-            hasStreamedMessage = false;
-            appendRenderedText = "";
-            appendSourceText = "";
-            statusUpdateCount = 0;
-          }
-        };
-
   const { queuedFinal, counts } = await dispatchInboundMessage({
     ctx: prepared.ctxPayload,
     cfg,
     dispatcher,
-    replyOptions: {
-      ...replyOptions,
-      skillFilter: prepared.channelConfig?.skills,
-      hasRepliedRef,
-      disableBlockStreaming: useStreaming
-        ? true
-        : typeof account.config.blockStreaming === "boolean"
-          ? !account.config.blockStreaming
-          : undefined,
-      onModelSelected,
-      onPartialReply: useStreaming
-        ? undefined
-        : !previewStreamingEnabled
-          ? undefined
-          : async (payload) => {
-              updateDraftFromPartial(payload.text);
-            },
-      onAssistantMessageStart: onDraftBoundary,
-      onReasoningEnd: onDraftBoundary,
-    },
   });
   await draftStream.flush();
   draftStream.stop();

@@ -83,9 +83,9 @@ describe("withReplyDispatcher", () => {
       ctx: buildTestCtx(),
       cfg: {} as OpenClawConfig,
       dispatcher,
-      replyResolver: async () => ({ text: "ok" }),
     });
 
-    expect(order).toEqual(["sendFinalReply", "markComplete", "waitForIdle"]);
+    // Without the AI runner, no final reply is sent
+    expect(order).toEqual(["markComplete", "waitForIdle"]);
   });
 });

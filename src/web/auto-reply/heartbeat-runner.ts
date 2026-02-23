@@ -1,12 +1,3 @@
-import { appendCronStyleCurrentTimeLine } from "../../agents/current-time.js";
-import { resolveHeartbeatReplyPayload } from "../../auto-reply/heartbeat-reply-payload.js";
-import {
-  DEFAULT_HEARTBEAT_ACK_MAX_CHARS,
-  resolveHeartbeatPrompt,
-  stripHeartbeatToken,
-} from "../../auto-reply/heartbeat.js";
-import { getReplyFromConfig } from "../../auto-reply/reply.js";
-import { HEARTBEAT_TOKEN } from "../../auto-reply/tokens.js";
 import { resolveWhatsAppHeartbeatRecipients } from "../../channels/plugins/whatsapp-heartbeat.js";
 import { loadConfig } from "../../config/config.js";
 import {
@@ -30,14 +21,12 @@ export async function runWebHeartbeatOnce(opts: {
   cfg?: ReturnType<typeof loadConfig>;
   to: string;
   verbose?: boolean;
-  replyResolver?: typeof getReplyFromConfig;
   sender?: typeof sendMessageWhatsApp;
   sessionId?: string;
   overrideBody?: string;
   dryRun?: boolean;
 }) {
   const { cfg: cfgOverride, to, verbose = false, sessionId, overrideBody, dryRun = false } = opts;
-  const replyResolver = opts.replyResolver ?? getReplyFromConfig;
   const sender = opts.sender ?? sendMessageWhatsApp;
   const runId = newConnectionId();
   const heartbeatLogger = getChildLogger({
@@ -50,7 +39,6 @@ export async function runWebHeartbeatOnce(opts: {
 
   // Resolve heartbeat visibility settings for WhatsApp
   const visibility = resolveHeartbeatVisibility({ cfg, channel: "whatsapp" });
-  const heartbeatOkText = HEARTBEAT_TOKEN;
 
   const maybeSendHeartbeatOk = async (): Promise<boolean> => {
     if (!visibility.showOk) {
@@ -60,12 +48,13 @@ export async function runWebHeartbeatOnce(opts: {
       whatsappHeartbeatLog.info(`[dry-run] heartbeat ok -> ${to}`);
       return false;
     }
-    const sendResult = await sender(to, heartbeatOkText, { verbose });
+    const okText = "HEARTBEAT_OK";
+    const sendResult = await sender(to, okText, { verbose });
     heartbeatLogger.info(
       {
         to,
         messageId: sendResult.messageId,
-        chars: heartbeatOkText.length,
+        chars: okText.length,
         reason: "heartbeat-ok",
       },
       "heartbeat ok sent",
@@ -159,133 +148,23 @@ export async function runWebHeartbeatOnce(opts: {
       return;
     }
 
-    const replyResult = await replyResolver(
-      {
-        Body: appendCronStyleCurrentTimeLine(
-          resolveHeartbeatPrompt(cfg.agents?.defaults?.heartbeat?.prompt),
-          cfg,
-          Date.now(),
-        ),
-        From: to,
-        To: to,
-        MessageSid: sessionId ?? sessionSnapshot.entry?.sessionId,
-      },
-      { isHeartbeat: true },
-      cfg,
-    );
-    const replyPayload = resolveHeartbeatReplyPayload(replyResult);
-
-    if (
-      !replyPayload ||
-      (!replyPayload.text && !replyPayload.mediaUrl && !replyPayload.mediaUrls?.length)
-    ) {
-      heartbeatLogger.info(
-        {
-          to,
-          reason: "empty-reply",
-          sessionId: sessionSnapshot.entry?.sessionId ?? null,
-        },
-        "heartbeat skipped",
-      );
-      const okSent = await maybeSendHeartbeatOk();
-      emitHeartbeatEvent({
-        status: "ok-empty",
-        to,
-        channel: "whatsapp",
-        silent: !okSent,
-        indicatorType: visibility.useIndicator ? resolveIndicatorType("ok-empty") : undefined,
-      });
-      return;
-    }
-
-    const hasMedia = Boolean(replyPayload.mediaUrl || (replyPayload.mediaUrls?.length ?? 0) > 0);
-    const ackMaxChars = Math.max(
-      0,
-      cfg.agents?.defaults?.heartbeat?.ackMaxChars ?? DEFAULT_HEARTBEAT_ACK_MAX_CHARS,
-    );
-    const stripped = stripHeartbeatToken(replyPayload.text, {
-      mode: "heartbeat",
-      maxAckChars: ackMaxChars,
-    });
-    if (stripped.shouldSkip && !hasMedia) {
-      // Don't let heartbeats keep sessions alive: restore previous updatedAt so idle expiry still works.
-      const storePath = resolveStorePath(cfg.session?.store);
-      const store = loadSessionStore(storePath);
-      if (sessionSnapshot.entry && store[sessionSnapshot.key]) {
-        store[sessionSnapshot.key].updatedAt = sessionSnapshot.entry.updatedAt;
-        await updateSessionStore(storePath, (nextStore) => {
-          const nextEntry = nextStore[sessionSnapshot.key];
-          if (!nextEntry) {
-            return;
-          }
-          nextStore[sessionSnapshot.key] = {
-            ...nextEntry,
-            updatedAt: sessionSnapshot.entry.updatedAt,
-          };
-        });
-      }
-
-      heartbeatLogger.info(
-        { to, reason: "heartbeat-token", rawLength: replyPayload.text?.length },
-        "heartbeat skipped",
-      );
-      const okSent = await maybeSendHeartbeatOk();
-      emitHeartbeatEvent({
-        status: "ok-token",
-        to,
-        channel: "whatsapp",
-        silent: !okSent,
-        indicatorType: visibility.useIndicator ? resolveIndicatorType("ok-token") : undefined,
-      });
-      return;
-    }
-
-    if (hasMedia) {
-      heartbeatLogger.warn({ to }, "heartbeat reply contained media; sending text only");
-    }
-
-    const finalText = stripped.text || replyPayload.text || "";
-
-    // Check if alerts are disabled for WhatsApp
-    if (!visibility.showAlerts) {
-      heartbeatLogger.info({ to, reason: "alerts-disabled" }, "heartbeat skipped");
-      emitHeartbeatEvent({
-        status: "skipped",
-        to,
-        reason: "alerts-disabled",
-        preview: finalText.slice(0, 200),
-        channel: "whatsapp",
-        hasMedia,
-        indicatorType: visibility.useIndicator ? resolveIndicatorType("sent") : undefined,
-      });
-      return;
-    }
-
-    if (dryRun) {
-      heartbeatLogger.info({ to, reason: "dry-run", chars: finalText.length }, "heartbeat dry-run");
-      whatsappHeartbeatLog.info(`[dry-run] heartbeat -> ${to}: ${elide(finalText, 200)}`);
-      return;
-    }
-
-    const sendResult = await sender(to, finalText, { verbose });
-    emitHeartbeatEvent({
-      status: "sent",
-      to,
-      preview: finalText.slice(0, 160),
-      hasMedia,
-      channel: "whatsapp",
-      indicatorType: visibility.useIndicator ? resolveIndicatorType("sent") : undefined,
-    });
+    // AI runner removed — heartbeat emits ok-empty
     heartbeatLogger.info(
       {
         to,
-        messageId: sendResult.messageId,
-        chars: finalText.length,
-        preview: elide(finalText, 140),
+        reason: "no-ai-runner",
+        sessionId: sessionSnapshot.entry?.sessionId ?? null,
       },
-      "heartbeat sent",
+      "heartbeat skipped",
     );
-    whatsappHeartbeatLog.info(`heartbeat alert sent to ${to}`);
+    const okSent = await maybeSendHeartbeatOk();
+    emitHeartbeatEvent({
+      status: "ok-empty",
+      to,
+      channel: "whatsapp",
+      silent: !okSent,
+      indicatorType: visibility.useIndicator ? resolveIndicatorType("ok-empty") : undefined,
+    });
   } catch (err) {
     const reason = formatError(err);
     heartbeatLogger.warn({ to, error: reason }, "heartbeat failed");

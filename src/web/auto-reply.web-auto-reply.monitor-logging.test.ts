@@ -36,7 +36,6 @@ describe("web auto-reply monitor logging", () => {
       false,
       listenerFactory as never,
       true,
-      async () => ({ text: "ok" }),
       runtime as never,
       controller.signal,
       {
@@ -70,8 +69,7 @@ describe("web auto-reply monitor logging", () => {
       return { close: vi.fn() };
     };
 
-    const resolver = vi.fn().mockResolvedValue({ text: "auto" });
-    await monitorWebChannel(false, listenerFactory as never, false, resolver as never);
+    await monitorWebChannel(false, listenerFactory as never, false);
     expect(capturedOnMessage).toBeDefined();
 
     await capturedOnMessage?.({

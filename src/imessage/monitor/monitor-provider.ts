@@ -386,7 +386,7 @@ export async function monitorIMessageProvider(opts: MonitorIMessageOpts = {}): P
       );
     }
 
-    const { onModelSelected, ...prefixOptions } = createReplyPrefixOptions({
+    const prefixOptions = createReplyPrefixOptions({
       cfg,
       agentId: decision.route.agentId,
       channel: "imessage",
@@ -422,13 +422,6 @@ export async function monitorIMessageProvider(opts: MonitorIMessageOpts = {}): P
       ctx: ctxPayload,
       cfg,
       dispatcher,
-      replyOptions: {
-        disableBlockStreaming:
-          typeof accountInfo.config.blockStreaming === "boolean"
-            ? !accountInfo.config.blockStreaming
-            : undefined,
-        onModelSelected,
-      },
     });
 
     if (!queuedFinal) {

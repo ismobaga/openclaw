@@ -24,7 +24,7 @@ function makeReplyLogger() {
   } as unknown as Parameters<typeof createWebOnMessageHandler>[0]["replyLogger"];
 }
 
-function createHandlerForTest(opts: { cfg: OpenClawConfig; replyResolver: unknown }) {
+function createHandlerForTest(opts: { cfg: OpenClawConfig }) {
   const backgroundTasks = new Set<Promise<unknown>>();
   const handler = createWebOnMessageHandler({
     cfg: opts.cfg,
@@ -36,9 +36,6 @@ function createHandlerForTest(opts: { cfg: OpenClawConfig; replyResolver: unknow
     groupMemberNames: new Map(),
     echoTracker: createEchoTracker({ maxItems: 10 }),
     backgroundTasks,
-    replyResolver: opts.replyResolver as Parameters<
-      typeof createWebOnMessageHandler
-    >[0]["replyResolver"],
     replyLogger: makeReplyLogger(),
     baseMentionConfig: buildMentionConfig(opts.cfg),
     account: {},
@@ -48,9 +45,8 @@ function createHandlerForTest(opts: { cfg: OpenClawConfig; replyResolver: unknow
 }
 
 function createLastRouteHarness(storePath: string) {
-  const replyResolver = vi.fn().mockResolvedValue(undefined);
   const cfg = makeCfg(storePath);
-  return createHandlerForTest({ cfg, replyResolver });
+  return createHandlerForTest({ cfg });
 }
 
 function buildInboundMessage(params: {

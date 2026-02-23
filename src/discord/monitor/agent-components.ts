@@ -849,7 +849,7 @@ async function dispatchDiscordComponentEvent(params: {
 
   const deliverTarget = `channel:${interactionCtx.channelId}`;
   const typingChannelId = interactionCtx.channelId;
-  const { onModelSelected, ...prefixOptions } = createReplyPrefixOptions({
+  const prefixOptions = createReplyPrefixOptions({
     cfg: ctx.cfg,
     agentId,
     channel: "discord",
@@ -874,7 +874,6 @@ async function dispatchDiscordComponentEvent(params: {
   await dispatchReplyWithBufferedBlockDispatcher({
     ctx: ctxPayload,
     cfg: ctx.cfg,
-    replyOptions: { onModelSelected },
     dispatcherOptions: {
       ...prefixOptions,
       humanDelay: resolveHumanDelayConfig(ctx.cfg, agentId),

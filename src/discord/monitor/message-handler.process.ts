@@ -388,7 +388,7 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
     ? deliverTarget.slice("channel:".length)
     : messageChannelId;
 
-  const { onModelSelected, ...prefixOptions } = createReplyPrefixOptions({
+  const prefixOptions = createReplyPrefixOptions({
     cfg,
     agentId: route.agentId,
     channel: "discord",
@@ -441,11 +441,9 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
     draftStream && discordStreamMode === "block"
       ? resolveDiscordDraftStreamingChunking(cfg, accountId)
       : undefined;
-  const shouldSplitPreviewMessages = discordStreamMode === "block";
   const draftChunker = draftChunking ? new EmbeddedBlockChunker(draftChunking) : undefined;
   let lastPartialText = "";
   let draftText = "";
-  let hasStreamedMessage = false;
   let finalizedViaPreviewMessage = false;
 
   const resolvePreviewFinalText = (text?: string) => {
@@ -479,55 +477,6 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
     return trimmed;
   };
 
-  const updateDraftFromPartial = (text?: string) => {
-    if (!draftStream || !text) {
-      return;
-    }
-    if (text === lastPartialText) {
-      return;
-    }
-    hasStreamedMessage = true;
-    if (discordStreamMode === "partial") {
-      // Keep the longer preview to avoid visible punctuation flicker.
-      if (
-        lastPartialText &&
-        lastPartialText.startsWith(text) &&
-        text.length < lastPartialText.length
-      ) {
-        return;
-      }
-      lastPartialText = text;
-      draftStream.update(text);
-      return;
-    }
-
-    let delta = text;
-    if (text.startsWith(lastPartialText)) {
-      delta = text.slice(lastPartialText.length);
-    } else {
-      // Streaming buffer reset (or non-monotonic stream). Start fresh.
-      draftChunker?.reset();
-      draftText = "";
-    }
-    lastPartialText = text;
-    if (!delta) {
-      return;
-    }
-    if (!draftChunker) {
-      draftText = text;
-      draftStream.update(draftText);
-      return;
-    }
-    draftChunker.append(delta);
-    draftChunker.drain({
-      force: false,
-      emit: (chunk) => {
-        draftText += chunk;
-        draftStream.update(draftText);
-      },
-    });
-  };
-
   const flushDraft = async () => {
     if (!draftStream) {
       return;
@@ -547,10 +496,7 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
     await draftStream.flush();
   };
 
-  // When draft streaming is active, suppress block streaming to avoid double-streaming.
-  const disableBlockStreamingForDraft = draftStream ? true : undefined;
-
-  const { dispatcher, replyOptions, markDispatchIdle } = createReplyDispatcherWithTyping({
+  const { dispatcher, markDispatchIdle } = createReplyDispatcherWithTyping({
     ...prefixOptions,
     humanDelay: resolveHumanDelayConfig(cfg, route.agentId),
     deliver: async (payload: ReplyPayload, info) => {
@@ -658,45 +604,6 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
       ctx: ctxPayload,
       cfg,
       dispatcher,
-      replyOptions: {
-        ...replyOptions,
-        skillFilter: channelConfig?.skills,
-        disableBlockStreaming:
-          disableBlockStreamingForDraft ??
-          (typeof discordConfig?.blockStreaming === "boolean"
-            ? !discordConfig.blockStreaming
-            : undefined),
-        onPartialReply: draftStream ? (payload) => updateDraftFromPartial(payload.text) : undefined,
-        onAssistantMessageStart: draftStream
-          ? () => {
-              if (shouldSplitPreviewMessages && hasStreamedMessage) {
-                logVerbose("discord: calling forceNewMessage() for draft stream");
-                draftStream.forceNewMessage();
-              }
-              lastPartialText = "";
-              draftText = "";
-              draftChunker?.reset();
-            }
-          : undefined,
-        onReasoningEnd: draftStream
-          ? () => {
-              if (shouldSplitPreviewMessages && hasStreamedMessage) {
-                logVerbose("discord: calling forceNewMessage() for draft stream");
-                draftStream.forceNewMessage();
-              }
-              lastPartialText = "";
-              draftText = "";
-              draftChunker?.reset();
-            }
-          : undefined,
-        onModelSelected,
-        onReasoningStream: async () => {
-          await statusReactions.setThinking();
-        },
-        onToolStart: async (payload) => {
-          await statusReactions.setTool(payload.name);
-        },
-      },
     });
   } catch (err) {
     dispatchError = true;

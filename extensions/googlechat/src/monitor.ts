@@ -713,7 +713,7 @@ async function processMessageWithPipeline(params: {
     }
   }
 
-  const { onModelSelected, ...prefixOptions } = createReplyPrefixOptions({
+  const prefixOptions = createReplyPrefixOptions({
     cfg: config,
     agentId: route.agentId,
     channel: "googlechat",
@@ -744,9 +744,6 @@ async function processMessageWithPipeline(params: {
           `[${account.accountId}] Google Chat ${info.kind} reply failed: ${String(err)}`,
         );
       },
-    },
-    replyOptions: {
-      onModelSelected,
     },
   });
 }

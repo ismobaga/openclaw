@@ -5,7 +5,6 @@ import {
   formatInboundEnvelope,
   resolveEnvelopeFormatOptions,
 } from "../../../auto-reply/envelope.js";
-import type { getReplyFromConfig } from "../../../auto-reply/reply.js";
 import {
   buildHistoryContextFromEntries,
   type HistoryEntry,
@@ -121,7 +120,6 @@ export async function processMessage(params: {
   connectionId: string;
   verbose: boolean;
   maxMediaBytes: number;
-  replyResolver: typeof getReplyFromConfig;
   replyLogger: ReturnType<typeof getChildLogger>;
   backgroundTasks: Set<Promise<unknown>>;
   rememberSentText: (
@@ -260,7 +258,7 @@ export async function processMessage(params: {
     ? await resolveWhatsAppCommandAuthorized({ cfg: params.cfg, msg: params.msg })
     : undefined;
   const configuredResponsePrefix = params.cfg.messages?.responsePrefix;
-  const { onModelSelected, ...prefixOptions } = createReplyPrefixOptions({
+  const prefixOptions = createReplyPrefixOptions({
     cfg: params.cfg,
     agentId: params.route.agentId,
     channel: "whatsapp",
@@ -357,7 +355,6 @@ export async function processMessage(params: {
   const { queuedFinal } = await dispatchReplyWithBufferedBlockDispatcher({
     ctx: ctxPayload,
     cfg: params.cfg,
-    replyResolver: params.replyResolver,
     dispatcherOptions: {
       ...prefixOptions,
       responsePrefix,
@@ -415,13 +412,6 @@ export async function processMessage(params: {
         );
       },
       onReplyStart: params.msg.sendComposing,
-    },
-    replyOptions: {
-      disableBlockStreaming:
-        typeof params.cfg.channels?.whatsapp?.blockStreaming === "boolean"
-          ? !params.cfg.channels.whatsapp.blockStreaming
-          : undefined,
-      onModelSelected,
     },
   });
 
